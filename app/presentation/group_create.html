@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>グループ作成</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 1rem;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            max-width: 500px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.8rem;
+        }
+        
+        .header p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+        
+        .form-container {
+            padding: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #4285f4;
+        }
+        
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .form-help {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            flex: 1;
+        }
+        
+        .btn-primary {
+            background: #4285f4;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #3367d6;
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 2px solid #dee2e6;
+        }
+        
+        .btn-secondary:hover {
+            background: #e9ecef;
+            transform: translateY(-1px);
+        }
+        
+        .feature-list {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .feature-list h3 {
+            margin: 0 0 0.75rem 0;
+            font-size: 1rem;
+            color: #333;
+        }
+        
+        .feature-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .feature-icon {
+            margin-right: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 0.5rem;
+                align-items: flex-start;
+                padding-top: 2rem;
+            }
+            
+            .header {
+                padding: 1.5rem;
+            }
+            
+            .form-container {
+                padding: 1.5rem;
+            }
+            
+            .form-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>➕ グループ作成</h1>
+            <p>新しいグループを作成して、メンバーと一緒にスケジュールを管理しましょう</p>
+        </div>
+        
+        <div class="form-container">
+            <div class="feature-list">
+                <h3>📋 グループでできること</h3>
+                <div class="feature-item">
+                    <span class="feature-icon">👥</span>
+                    <span>メンバー招待機能</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">🔗</span>
+                    <span>簡単な招待URL共有</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">📅</span>
+                    <span>共有カレンダー（今後対応予定）</span>
+                </div>
+                <div class="feature-item">
+                    <span class="feature-icon">🔒</span>
+                    <span>プライベートグループ管理</span>
+                </div>
+            </div>
+            
+            <form method="post" action="/groups/create">
+                <div class="form-group">
+                    <label for="name" class="form-label">グループ名 *</label>
+                    <input 
+                        type="text" 
+                        id="name" 
+                        name="name" 
+                        class="form-input" 
+                        placeholder="例: 開発チーム、友達グループ"
+                        required
+                        maxlength="50"
+                    >
+                    <div class="form-help">50文字以内で入力してください</div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="description" class="form-label">説明（任意）</label>
+                    <textarea 
+                        id="description" 
+                        name="description" 
+                        class="form-input form-textarea" 
+                        placeholder="グループの目的や概要を説明してください"
+                        maxlength="200"
+                    ></textarea>
+                    <div class="form-help">200文字以内で入力してください</div>
+                </div>
+                
+                <div class="form-actions">
+                    <a href="/groups" class="btn btn-secondary">キャンセル</a>
+                    <button type="submit" class="btn btn-primary">グループを作成</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html> 

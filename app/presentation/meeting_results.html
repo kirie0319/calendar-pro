@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ミーティング空き時間 - カレンダービュー</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .search-summary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 5px solid #4CAF50;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .summary-item {
+            text-align: center;
+        }
+
+        .summary-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .summary-value {
+            font-weight: bold;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .participants {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .participant-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .participant-tag {
+            background: #2196F3;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.9em;
+        }
+
+        .calendar-section {
+            margin-top: 30px;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .legend {
+            display: flex;
+            gap: 20px;
+            font-size: 0.9em;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+
+        .legend-available { background: #4CAF50; }
+        .legend-busy { background: #f44336; }
+        .legend-partial-busy { background: linear-gradient(45deg, #4CAF50 50%, #f44336 50%); }
+        .legend-selected { background: #2196F3; }
+
+        .calendar-container {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            background: white;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: 80px repeat(7, 1fr);
+            background: white;
+        }
+
+        #timeGrid {
+            display: contents;
+        }
+
+        .day-header {
+            background: #f5f5f5;
+            padding: 15px 10px;
+            text-align: center;
+            border-right: 1px solid #e0e0e0;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .day-header.today {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .time-label {
+            background: #f9f9f9;
+            padding: 10px;
+            text-align: center;
+            border-right: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 0.9em;
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .time-slot {
+            border-right: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
+            height: 40px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .time-slot.available {
+            background: #e8f5e8;
+            border: 2px solid #4CAF50;
+        }
+
+        .time-slot.available:hover {
+            background: #c8e6c9;
+            transform: scale(1.02);
+            z-index: 2;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+        }
+
+        .time-slot.busy {
+            background: #ffebee;
+            border: 2px solid #f44336;
+            cursor: not-allowed;
+        }
+
+        .time-slot.selected {
+            background: #e3f2fd;
+            border: 2px solid #2196F3;
+            animation: pulse 1s infinite;
+        }
+
+        .time-slot.not-in-range {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            cursor: not-allowed;
+        }
+
+        .time-slot.partial-busy {
+            background: linear-gradient(45deg, #e8f5e8 50%, #ffebee 50%);
+            border: 2px solid #ff9800;
+            cursor: pointer;
+        }
+
+        .time-slot.fully-busy {
+            background: #ffebee;
+            border: 2px solid #f44336;
+            cursor: not-allowed;
+        }
+
+        .event-marker {
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            width: 8px;
+            height: 8px;
+            background: #f44336;
+            border-radius: 50%;
+            font-size: 6px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(33, 150, 243, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(33, 150, 243, 0); }
+        }
+
+        .slot-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.85em;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 10;
+            max-width: 300px;
+            white-space: normal;
+            text-align: left;
+        }
+
+        .slot-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #333;
+        }
+
+        .time-slot:hover .slot-tooltip {
+            opacity: 1;
+        }
+
+        .tooltip-section {
+            margin-bottom: 8px;
+        }
+
+        .tooltip-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .tooltip-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #fff;
+        }
+
+        .tooltip-event {
+            margin-bottom: 3px;
+            font-size: 0.8em;
+            color: #e0e0e0;
+        }
+
+        .schedule-details-panel {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .schedule-details-header {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .member-schedule {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #2196F3;
+        }
+
+        .member-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .member-events {
+            margin-left: 10px;
+        }
+
+        .event-item {
+            margin-bottom: 5px;
+            padding: 4px 8px;
+            background: #f0f8ff;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .event-time {
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        .event-title {
+            color: #666;
+            margin-left: 8px;
+        }
+
+        .selected-time-info {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+            border-left: 5px solid #2196F3;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .navigation {
+            margin-bottom: 20px;
+        }
+
+        .nav-link {
+            color: #4CAF50;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .no-results-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 20px;
+            }
+
+            .calendar-grid {
+                grid-template-columns: 60px repeat(7, 1fr);
+            }
+
+            .day-header {
+                padding: 10px 5px;
+                font-size: 0.8em;
+            }
+
+            .time-label {
+                padding: 5px;
+                font-size: 0.7em;
+            }
+
+            .time-slot {
+                height: 30px;
+            }
+
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+
+            .legend {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="navigation">
+            <a href="/groups/{{ group.id }}/schedule" class="nav-link">← 検索条件を変更</a>
+        </div>
+
+        <div class="header">
+            <h1>📅 ミーティング空き時間カレンダー</h1>
+        </div>
+
+        <!-- 検索条件サマリー -->
+        <div class="search-summary">
+            <h3>🔍 検索条件</h3>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="summary-label">検索期間</div>
+                    <div class="summary-value">{{ search_params.start_date }} 〜 {{ search_params.end_date }}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">時間帯</div>
+                    <div class="summary-value">{{ search_params.start_time }} 〜 {{ search_params.end_time }}</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">ミーティング時間</div>
+                    <div class="summary-value">{{ search_params.duration }}分</div>
+                </div>
+                <div class="summary-item">
+                    <div class="summary-label">参加者数</div>
+                    <div class="summary-value">{{ search_params.selected_members|length }}名</div>
+                </div>
+            </div>
+
+            <div class="participants">
+                <strong>👥 参加者:</strong>
+                <div class="participant-tags">
+                    {% for member in search_params.selected_members %}
+                    <span class="participant-tag">{{ member }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- カレンダーセクション -->
+        <div class="calendar-section">
+            <div class="calendar-header">
+                <h3>⏰ 1週間カレンダービュー</h3>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color legend-available"></div>
+                        <span>全員空き</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color legend-partial-busy"></div>
+                        <span>一部予定あり</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color legend-busy"></div>
+                        <span>全員予定あり</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color legend-selected"></div>
+                        <span>選択中</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="calendar-container">
+                <div class="calendar-grid" id="calendarGrid">
+                    <!-- 空のコーナーセル -->
+                    <div class="day-header"></div>
+                    
+                    <!-- 曜日ヘッダー -->
+                    {% set week_days = ['月', '火', '水', '木', '金', '土', '日'] %}
+                    {% for day in week_days %}
+                    <div class="day-header" id="day-{{ loop.index0 }}">{{ day }}</div>
+                    {% endfor %}
+                    
+                    <!-- タイムグリッド -->
+                    <div id="timeGrid"></div>
+                </div>
+            </div>
+
+            <!-- 選択された時間の情報 -->
+            <div class="selected-time-info" id="selectedTimeInfo">
+                <h4>📋 選択された時間</h4>
+                <p id="selectedTimeText"></p>
+                <p>ミーティング時間: {{ search_params.duration }}分</p>
+            </div>
+            
+            <!-- 予定詳細表示パネル -->
+            <div class="schedule-details-panel" id="scheduleDetailsPanel">
+                <div class="schedule-details-header">📅 メンバーの予定詳細</div>
+                <div id="scheduleDetailsContent"></div>
+            </div>
+            
+            <!-- 結果がない場合のメッセージ -->
+            <div class="no-results" id="noResultsMessage" style="display: none;">
+                <div class="no-results-icon">😔</div>
+                <h3>空き時間が見つかりませんでした</h3>
+                <p>指定された条件では、全員が参加可能な時間がありませんでした。</p>
+            </div>
+        </div>
+
+        <!-- アクションボタン -->
+        <div class="action-buttons">
+            <a href="/groups/{{ group.id }}/schedule" class="btn btn-secondary">🔄 新しい検索</a>
+            <a href="/groups/{{ group.id }}" class="btn btn-primary">📋 グループに戻る</a>
+            <button class="btn btn-secondary" onclick="hideScheduleDetails()" id="hideDetailsBtn" style="display: none;">📅 予定詳細を非表示</button>
+        </div>
+    </div>
+
+    <!-- データを隠し要素に保存 -->
+    <script type="application/json" id="available-slots-data">{{ available_slots | tojson | safe }}</script>
+    <script type="application/json" id="search-params-data">{{ search_params | tojson | safe }}</script>
+    <script type="application/json" id="member-schedules-data">{{ member_schedules | tojson | safe }}</script>
+
+    <script>
+        // データを隠し要素から取得
+        const availableSlots = JSON.parse(document.getElementById('available-slots-data').textContent);
+        const searchParams = JSON.parse(document.getElementById('search-params-data').textContent);
+        const memberSchedules = JSON.parse(document.getElementById('member-schedules-data').textContent);
+        
+        // デバッグ用カウンター
+        let debugCounter = 0;
+        
+        // 時間範囲を解析（24時間対応）
+        const [startHour, startMinute] = searchParams.start_time.split(':').map(Number);
+        const [endHour, endMinute] = searchParams.end_time.split(':').map(Number);
+        
+        // デバッグ情報をコンソールに出力
+        console.log('🔍 検索パラメータ:', searchParams);
+        console.log('📅 利用可能スロット数:', availableSlots.length);
+        console.log('👥 メンバースケジュール:', memberSchedules);
+        console.log('⏰ 時間範囲:', `${searchParams.start_time} - ${searchParams.end_time}`);
+        
+        // 検索期間の開始日を基準に週の開始日を計算（月曜日）
+        const searchStartDate = new Date(searchParams.start_date);
+        const dayOfWeek = searchStartDate.getDay();
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        const monday = new Date(searchStartDate);
+        monday.setDate(searchStartDate.getDate() + mondayOffset);
+        
+        // カレンダーグリッドを生成
+        function generateCalendarGrid() {
+            const timeGrid = document.getElementById('timeGrid');
+            timeGrid.innerHTML = '';
+            
+            console.log('🏗️ カレンダーグリッド生成開始');
+            console.log(`📊 時間範囲: ${startHour}:${startMinute.toString().padStart(2,'0')} - ${endHour}:${endMinute.toString().padStart(2,'0')}`);
+            
+            // 開始時刻と終了時刻を分単位で計算
+            const startTotalMinutes = startHour * 60 + startMinute;
+            const endTotalMinutes = endHour * 60 + endMinute;
+            
+            // 30分刻みの時間スロットを生成
+            for (let totalMinutes = startTotalMinutes; totalMinutes < endTotalMinutes; totalMinutes += 30) {
+                const hour = Math.floor(totalMinutes / 60);
+                const minute = totalMinutes % 60;
+                
+                const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                
+                // 時間ラベル
+                const timeLabel = document.createElement('div');
+                timeLabel.className = 'time-label';
+                timeLabel.textContent = timeString;
+                timeGrid.appendChild(timeLabel);
+                
+                // 各曜日のタイムスロット
+                for (let day = 0; day < 7; day++) {
+                    const currentDate = new Date(monday);
+                    currentDate.setDate(monday.getDate() + day);
+                    const dateString = currentDate.toISOString().split('T')[0];
+                    
+                    const slot = document.createElement('div');
+                    slot.className = 'time-slot';
+                    slot.dataset.date = dateString;
+                    slot.dataset.time = timeString;
+                    
+                    // この時間帯のメンバーの予定状況をチェック
+                    const slotStatus = checkSlotStatus(dateString, timeString, searchParams.duration);
+                    
+                    // ツールチップ作成
+                    const tooltip = document.createElement('div');
+                    tooltip.className = 'slot-tooltip';
+                    
+                    // バックエンドの判定を完全に信頼
+                    if (slotStatus.isAvailable) {
+                        slot.classList.add('available');
+                        slot.addEventListener('click', () => selectTimeSlot(slot, dateString, timeString, slotStatus));
+                        tooltip.innerHTML = createTooltipContent(timeString, searchParams.duration, slotStatus, '利用可能');
+                    } else {
+                        // 利用できない理由を詳細に表示
+                        if (slotStatus.busyMembers.length === 0) {
+                            // 予定がないのに利用不可 = 時間範囲外
+                            slot.classList.add('not-in-range');
+                            tooltip.innerHTML = createTooltipContent(timeString, searchParams.duration, slotStatus, '検索範囲外');
+                        } else if (slotStatus.busyMembers.length < slotStatus.totalMembers) {
+                            // 一部に予定あり
+                            slot.classList.add('partial-busy');
+                            const uncredentialed = searchParams.selected_members.length - slotStatus.membersWithCredentials.length;
+                            let status = `${slotStatus.busyMembers.length}名予定あり`;
+                            if (uncredentialed > 0) {
+                                status += `, ${uncredentialed}名未認証`;
+                            }
+                            tooltip.innerHTML = createTooltipContent(timeString, searchParams.duration, slotStatus, status);
+                        } else {
+                            // 認証済み全員に予定あり
+                            slot.classList.add('fully-busy');
+                            tooltip.innerHTML = createTooltipContent(timeString, searchParams.duration, slotStatus, '認証済み全員予定あり');
+                        }
+                    }
+                    
+                    // 予定がある場合、イベントマーカーを追加
+                    if (slotStatus.busyMembers.length > 0) {
+                        const marker = document.createElement('div');
+                        marker.className = 'event-marker';
+                        marker.textContent = slotStatus.busyMembers.length;
+                        slot.appendChild(marker);
+                    }
+                    
+                    slot.appendChild(tooltip);
+                    
+                    timeGrid.appendChild(slot);
+                }
+            }
+            
+            console.log('✅ カレンダーグリッド生成完了');
+            console.log(`📅 表示週範囲: ${monday.toISOString().split('T')[0]} 〜 ${new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`);
+            
+            // 今日の列をハイライト
+            highlightToday();
+        }
+        
+        // 今日の列をハイライト
+        function highlightToday() {
+            const today = new Date();
+            const todayString = today.toISOString().split('T')[0];
+            
+            // 表示されている週に今日が含まれているかチェック
+            const weekEnd = new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000);
+            const weekEndString = weekEnd.toISOString().split('T')[0];
+            const mondayString = monday.toISOString().split('T')[0];
+            
+            if (todayString >= mondayString && todayString <= weekEndString) {
+                const todayDayOfWeek = today.getDay();
+                const mondayBasedDay = todayDayOfWeek === 0 ? 6 : todayDayOfWeek - 1;
+                
+                const todayHeader = document.getElementById(`day-${mondayBasedDay}`);
+                if (todayHeader) {
+                    todayHeader.classList.add('today');
+                    todayHeader.textContent += ` (今日)`;
+                }
+                console.log(`✅ 今日(${todayString})をハイライトしました`);
+            } else {
+                console.log(`ℹ️ 今日(${todayString})は表示週範囲外です`);
+            }
+        }
+        
+        // 時間に分を追加する関数
+        function addMinutes(timeString, minutes) {
+            const [hour, minute] = timeString.split(':').map(Number);
+            const totalMinutes = hour * 60 + minute + minutes;
+            const newHour = Math.floor(totalMinutes / 60);
+            const newMinute = totalMinutes % 60;
+            return `${newHour.toString().padStart(2, '0')}:${newMinute.toString().padStart(2, '0')}`;
+        }
+        
+        // 指定時間帯の予定状況をチェック
+        function checkSlotStatus(date, startTime, durationMinutes) {
+            const [startHour, startMinute] = startTime.split(':').map(Number);
+            const slotStart = new Date(`${date}T${startTime}:00`);
+            const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
+            
+            const busyMembers = [];
+            const busyEvents = [];
+            const membersWithCredentials = [];
+            
+            // 認証情報があるメンバーを特定
+            for (const email of searchParams.selected_members) {
+                if (memberSchedules[email] && memberSchedules[email].length >= 0) {
+                    membersWithCredentials.push(email);
+                }
+            }
+            
+            console.log(`🔍 時間帯 ${date} ${startTime}: 認証済みメンバー ${membersWithCredentials.length}名 / 総メンバー ${searchParams.selected_members.length}名`);
+            
+            // 認証情報があるメンバーの予定をチェック
+            for (const email of membersWithCredentials) {
+                for (const event of memberSchedules[email]) {
+                    const eventStart = new Date(event.start_datetime);
+                    const eventEnd = new Date(event.end_datetime);
+                    
+                    // 時間が重複するかチェック
+                    if (eventStart < slotEnd && eventEnd > slotStart) {
+                        if (!busyMembers.includes(email)) {
+                            busyMembers.push(email);
+                        }
+                        busyEvents.push({
+                            member: email,
+                            title: event.title,
+                            start: event.start_time,
+                            end: event.end_time
+                        });
+                    }
+                }
+            }
+            
+            // 利用可能かどうかを判定（バックエンドの判定を信頼）
+            const isAvailable = availableSlots.some(s => {
+                const match = s.date === date && s.start_time === startTime;
+                if (match) {
+                    console.log(`✅ マッチング成功: ${date} ${startTime} -> スロット:`, s);
+                }
+                return match;
+            });
+            
+            // 最初の数回はデバッグ情報を出力
+            if (debugCounter < 5) {
+                console.log(`🔍 判定 ${date} ${startTime}:`, {
+                    availableSlots: availableSlots.filter(s => s.date === date).slice(0, 3),
+                    isAvailable: isAvailable
+                });
+                debugCounter++;
+            }
+            
+            // 認証情報がないメンバーは空きとして扱う（バックエンドと同じロジック）
+            const effectiveTotalMembers = membersWithCredentials.length > 0 ? membersWithCredentials.length : searchParams.selected_members.length;
+            
+            console.log(`📊 ${date} ${startTime}: 予定あり${busyMembers.length}名 / 認証済み${effectiveTotalMembers}名, 利用可能: ${isAvailable}`);
+            
+            return {
+                isAvailable: isAvailable,
+                busyMembers: busyMembers,
+                busyEvents: busyEvents,
+                totalMembers: effectiveTotalMembers,
+                membersWithCredentials: membersWithCredentials
+            };
+        }
+        
+        // ツールチップ内容を作成
+        function createTooltipContent(startTime, durationMinutes, slotStatus, statusText) {
+            const endTime = addMinutes(startTime, durationMinutes);
+            let content = `<div class="tooltip-section">
+                <div class="tooltip-title">${startTime} - ${endTime}</div>
+                <div style="color: #ccc;">${statusText}</div>
+            </div>`;
+            
+            if (slotStatus.busyEvents && slotStatus.busyEvents.length > 0) {
+                content += `<div class="tooltip-section">
+                    <div class="tooltip-title">予定あり:</div>`;
+                
+                slotStatus.busyEvents.forEach(event => {
+                    content += `<div class="tooltip-event">
+                        ${event.member}: ${event.title} (${event.start}-${event.end})
+                    </div>`;
+                });
+                
+                content += `</div>`;
+            }
+            
+            return content;
+        }
+        
+
+        
+        // 時間スロット選択
+        function selectTimeSlot(slot, date, time, slotStatus) {
+            // 他の選択を解除
+            document.querySelectorAll('.time-slot.selected').forEach(s => {
+                s.classList.remove('selected');
+            });
+            
+            // 選択されたスロットをハイライト
+            slot.classList.add('selected');
+            
+            // 選択情報を表示
+            const selectedInfo = document.getElementById('selectedTimeInfo');
+            const selectedText = document.getElementById('selectedTimeText');
+            
+            const dateObj = new Date(date);
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            const dayName = dayNames[dateObj.getDay()];
+            
+            selectedText.textContent = `${dateObj.getFullYear()}年${(dateObj.getMonth() + 1)}月${dateObj.getDate()}日 (${dayName}) ${time} - ${addMinutes(time, searchParams.duration)}`;
+            selectedInfo.style.display = 'block';
+            
+            // 予定詳細を表示
+            showScheduleDetails(date, time, slotStatus);
+            
+            // スムーズスクロール
+            selectedInfo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        // 予定詳細パネルを表示
+        function showScheduleDetails(date, time, slotStatus) {
+            const panel = document.getElementById('scheduleDetailsPanel');
+            const content = document.getElementById('scheduleDetailsContent');
+            
+            let html = '';
+            
+            for (const email of searchParams.selected_members) {
+                const memberEvents = [];
+                
+                // そのメンバーの予定を検索
+                if (memberSchedules[email]) {
+                    const [startHour, startMinute] = time.split(':').map(Number);
+                    const slotStart = new Date(`${date}T${time}:00`);
+                    const slotEnd = new Date(slotStart.getTime() + searchParams.duration * 60000);
+                    
+                    for (const event of memberSchedules[email]) {
+                        const eventStart = new Date(event.start_datetime);
+                        const eventEnd = new Date(event.end_datetime);
+                        
+                        // 時間が重複するかチェック
+                        if (eventStart < slotEnd && eventEnd > slotStart) {
+                            memberEvents.push(event);
+                        }
+                    }
+                }
+                
+                html += `<div class="member-schedule">
+                    <div class="member-name">👤 ${email}</div>
+                    <div class="member-events">`;
+                
+                if (memberEvents.length > 0) {
+                    memberEvents.forEach(event => {
+                        html += `<div class="event-item">
+                            <span class="event-time">${event.start_time} - ${event.end_time}</span>
+                            <span class="event-title">${event.title}</span>
+                        </div>`;
+                    });
+                } else {
+                    html += `<div class="event-item" style="background: #e8f5e8; color: #2e7d32;">
+                        📅 この時間は空いています
+                    </div>`;
+                }
+                
+                html += `</div></div>`;
+            }
+            
+            content.innerHTML = html;
+            panel.style.display = 'block';
+            
+            // 非表示ボタンを表示
+            document.getElementById('hideDetailsBtn').style.display = 'inline-block';
+        }
+        
+        // 予定詳細パネルを非表示
+        function hideScheduleDetails() {
+            const panel = document.getElementById('scheduleDetailsPanel');
+            panel.style.display = 'none';
+            
+            // 選択されたスロットのハイライトも解除
+            document.querySelectorAll('.time-slot.selected').forEach(s => {
+                s.classList.remove('selected');
+            });
+            
+            // 選択された時間情報も非表示
+            const selectedInfo = document.getElementById('selectedTimeInfo');
+            selectedInfo.style.display = 'none';
+            
+            // 非表示ボタンも隠す
+            document.getElementById('hideDetailsBtn').style.display = 'none';
+        }
+        
+        // ページ読み込み時にカレンダーを生成
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 ページ読み込み完了');
+            console.log('📊 利用可能スロット:', availableSlots);
+            console.log('📊 利用可能スロット数:', availableSlots.length);
+            console.log('📅 検索期間:', `${searchParams.start_date} 〜 ${searchParams.end_date}`);
+            
+            // 結果表示の制御
+            const noResultsMessage = document.getElementById('noResultsMessage');
+            const selectedTimeInfo = document.getElementById('selectedTimeInfo');
+            
+            if (availableSlots.length === 0) {
+                noResultsMessage.style.display = 'block';
+                selectedTimeInfo.style.display = 'none';
+                console.log('⚠️ 利用可能スロットがありません');
+            } else {
+                noResultsMessage.style.display = 'none';
+                selectedTimeInfo.style.display = 'none'; // 選択時に表示
+                console.log(`🎯 ${availableSlots.length}件の利用可能スロットを発見`);
+            }
+            
+            try {
+                console.log('🎯 カレンダーグリッド生成を開始');
+                generateCalendarGrid();
+            } catch (error) {
+                console.error('❌ カレンダー生成エラー:', error);
+            }
+        });
+    </script>
+</body>
+</html> 

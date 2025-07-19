@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ミーティングスケジューラー</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #f0f0f0;
+            border-radius: 10px;
+            background: #fafafa;
+        }
+
+        .section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+        }
+
+        .section h3::before {
+            content: "📅";
+            margin-right: 10px;
+            font-size: 1.2em;
+        }
+
+        .group-info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .member-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .member-card {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .member-card:hover {
+            border-color: #4CAF50;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .member-card.selected {
+            border-color: #4CAF50;
+            background: #f1f8e9;
+        }
+
+        .member-card input[type="checkbox"] {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            transform: scale(1.2);
+        }
+
+        .member-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .member-email {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .member-role {
+            background: #2196F3;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-top: 8px;
+            display: inline-block;
+        }
+
+        .time-settings {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 1em;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .duration-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .duration-btn {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .duration-btn:hover, .duration-btn.selected {
+            border-color: #4CAF50;
+            background: #f1f8e9;
+        }
+
+        .search-button {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .search-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .search-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .validation-message {
+            color: #f44336;
+            font-size: 0.9em;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .navigation {
+            margin-bottom: 20px;
+        }
+
+        .nav-link {
+            color: #4CAF50;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                padding: 20px;
+            }
+
+            .time-settings {
+                grid-template-columns: 1fr;
+            }
+
+            .member-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="navigation">
+            <a href="/groups/{{ group.id }}" class="nav-link">← {{ group.name }} に戻る</a>
+        </div>
+
+        <div class="header">
+            <h1>🕒 ミーティングスケジューラー</h1>
+            <p>メンバーの空き時間を見つけて、最適なミーティング時間を提案します</p>
+        </div>
+
+        <div class="group-info">
+            <strong>📝 グループ:</strong> {{ group.name }}<br>
+            <strong>👥 総メンバー数:</strong> {{ members|length }}名
+        </div>
+
+        <form id="schedulerForm" action="/groups/{{ group.id }}/schedule" method="post">
+            <!-- メンバー選択セクション -->
+            <div class="section">
+                <h3>参加者を選択</h3>
+                <p style="color: #666; margin-bottom: 15px;">ミーティングに参加するメンバーを2名以上選択してください</p>
+                
+                <div class="member-grid">
+                    {% for member in members %}
+                    <div class="member-card" onclick="toggleMember(this, '{{ member.name }}')">
+                        <input type="checkbox" name="selected_members" value="{{ member.email }}" id="member_{{ loop.index }}">
+                        <div class="member-name">{{ member.name }}</div>
+                        <div class="member-email">{{ member.email }}</div>
+                        <div class="member-role">{{ member.role }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div id="member-validation" class="validation-message">
+                    少なくとも2名のメンバーを選択してください
+                </div>
+            </div>
+
+            <!-- 時間設定セクション -->
+            <div class="section">
+                <h3>ミーティング条件を設定</h3>
+                
+                <div class="time-settings">
+                    <div>
+                        <div class="form-group">
+                            <label for="search_start_date">検索開始日</label>
+                            <input type="date" id="search_start_date" name="search_start_date" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="search_end_date">検索終了日</label>
+                            <input type="date" id="search_end_date" name="search_end_date" required>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="form-group">
+                            <label for="start_time">希望開始時間</label>
+                            <select id="start_time" name="start_time" required>
+                                <!-- 24時間対応 -->
+                                {% for hour in range(0, 24) %}
+                                    {% for minute in [0, 30] %}
+                                        {% set time_str = "%02d:%02d"|format(hour, minute) %}
+                                        <option value="{{ time_str }}" 
+                                            {% if time_str == "09:00" %}selected{% endif %}>
+                                            {{ time_str }}
+                                        </option>
+                                    {% endfor %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="end_time">希望終了時間</label>
+                            <select id="end_time" name="end_time" required>
+                                <!-- 24時間対応 -->
+                                {% for hour in range(0, 24) %}
+                                    {% for minute in [0, 30] %}
+                                        {% set time_str = "%02d:%02d"|format(hour, minute) %}
+                                        <option value="{{ time_str }}"
+                                            {% if time_str == "18:00" %}selected{% endif %}>
+                                            {{ time_str }}
+                                        </option>
+                                    {% endfor %}
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>ミーティング時間</label>
+                    <div class="duration-options">
+                        <div class="duration-btn" onclick="selectDuration(this, 30)">30分</div>
+                        <div class="duration-btn selected" onclick="selectDuration(this, 60)">1時間</div>
+                        <div class="duration-btn" onclick="selectDuration(this, 90)">1.5時間</div>
+                        <div class="duration-btn" onclick="selectDuration(this, 120)">2時間</div>
+                    </div>
+                    <input type="hidden" name="duration_minutes" id="duration_minutes" value="60">
+                </div>
+            </div>
+
+            <button type="submit" class="search-button" id="searchBtn" disabled>
+                🔍 空き時間を検索
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // 今日の日付を設定
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('search_start_date').value = today;
+        
+        // 1週間後を終了日に設定
+        const nextWeek = new Date();
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        document.getElementById('search_end_date').value = nextWeek.toISOString().split('T')[0];
+
+        function toggleMember(card, memberName) {
+            const checkbox = card.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            
+            if (checkbox.checked) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+            
+            validateForm();
+        }
+
+        function selectDuration(btn, minutes) {
+            // 他のボタンの選択を解除
+            document.querySelectorAll('.duration-btn').forEach(b => b.classList.remove('selected'));
+            // 選択されたボタンを強調
+            btn.classList.add('selected');
+            // 隠しフィールドに値を設定
+            document.getElementById('duration_minutes').value = minutes;
+        }
+
+        function validateForm() {
+            const selectedMembers = document.querySelectorAll('input[name="selected_members"]:checked');
+            const searchBtn = document.getElementById('searchBtn');
+            const validation = document.getElementById('member-validation');
+            
+            if (selectedMembers.length >= 2) {
+                searchBtn.disabled = false;
+                validation.style.display = 'none';
+            } else {
+                searchBtn.disabled = true;
+                validation.style.display = 'block';
+            }
+        }
+
+        // フォーム送信時の処理
+        document.getElementById('schedulerForm').addEventListener('submit', function(e) {
+            const selectedMembers = document.querySelectorAll('input[name="selected_members"]:checked');
+            
+            if (selectedMembers.length < 2) {
+                e.preventDefault();
+                alert('少なくとも2名のメンバーを選択してください');
+                return;
+            }
+
+            // 送信ボタンを無効化してローディング表示
+            const btn = document.getElementById('searchBtn');
+            btn.innerHTML = '🔄 検索中...';
+            btn.disabled = true;
+        });
+
+        // 初期バリデーション
+        validateForm();
+    </script>
+</body>
+</html> 

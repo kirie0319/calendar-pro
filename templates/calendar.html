@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>週次カレンダー</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 1rem;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        
+        .week-range {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .calendar-wrapper {
+            overflow-x: auto;
+            padding: 1rem;
+        }
+        
+        .calendar-container {
+            min-width: 800px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        /* カレンダーヘッダー */
+        .calendar-header {
+            display: grid;
+            grid-template-columns: 60px repeat(7, 1fr);
+            background: #f8f9fa;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .time-header {
+            background: #f1f3f4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: #666;
+            border-right: 1px solid #e0e0e0;
+        }
+        
+        .day-header {
+            padding: 1rem 0.5rem;
+            text-align: center;
+            border-right: 1px solid #e0e0e0;
+            background: white;
+        }
+        
+        .day-header:last-child {
+            border-right: none;
+        }
+        
+        .day-name {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #333;
+            margin-bottom: 0.2rem;
+        }
+        
+        .day-number {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #666;
+        }
+        
+        .day-header.today .day-number {
+            background: #4285f4;
+            color: white;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
+        
+        /* カレンダーボディ */
+        .calendar-body {
+            display: grid;
+            grid-template-columns: 60px repeat(7, 1fr);
+            position: relative;
+        }
+        
+        .time-axis {
+            background: #f1f3f4;
+            border-right: 1px solid #e0e0e0;
+        }
+        
+        .hour-slot {
+            height: 60px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 0.3rem;
+            font-size: 0.75rem;
+            color: #666;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .day-column {
+            position: relative;
+            border-right: 1px solid #e0e0e0;
+            min-height: 900px; /* 15時間 × 60px */
+        }
+        
+        .day-column:last-child {
+            border-right: none;
+        }
+        
+        /* 時間グリッドの背景線 */
+        .hour-grid {
+            height: 60px;
+            border-bottom: 1px solid #e0e0e0;
+            position: relative;
+        }
+        
+        .hour-grid:hover {
+            background: rgba(66, 133, 244, 0.05);
+        }
+        
+        /* イベント表示 */
+        .event {
+            position: absolute;
+            left: 2px;
+            right: 2px;
+            background: #4285f4;
+            color: white;
+            border-radius: 4px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            line-height: 1.2;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            z-index: 1;
+        }
+        
+        .event:hover {
+            z-index: 2;
+            transform: scale(1.02);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .event:nth-child(2n) {
+            background: #34a853;
+        }
+        
+        .event:nth-child(3n) {
+            background: #ea4335;
+        }
+        
+        .event:nth-child(4n) {
+            background: #fbbc04;
+            color: #333;
+        }
+        
+        .event-title {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .event-time {
+            font-size: 0.65rem;
+            opacity: 0.9;
+            margin-top: 0.1rem;
+        }
+        
+        .all-day-events {
+            background: #f8f9fa;
+            padding: 0.5rem;
+            border-bottom: 1px solid #e0e0e0;
+            min-height: 40px;
+        }
+        
+        .all-day-event {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            margin-bottom: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .no-events {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+        
+        /* レスポンシブデザイン */
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .calendar-wrapper {
+                padding: 0.5rem;
+            }
+            
+            .calendar-header {
+                grid-template-columns: 50px repeat(7, minmax(80px, 1fr));
+            }
+            
+            .calendar-body {
+                grid-template-columns: 50px repeat(7, minmax(80px, 1fr));
+            }
+            
+            .event {
+                font-size: 0.65rem;
+                padding: 0.2rem 0.3rem;
+            }
+            
+            .day-header {
+                padding: 0.5rem 0.25rem;
+            }
+        }
+        
+        /* 今日のハイライト */
+        .today-column {
+            background: rgba(66, 133, 244, 0.03);
+        }
+        
+        /* グリッドライン強調 */
+        .hour-grid:nth-child(odd) {
+            background: rgba(0, 0, 0, 0.01);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <h1>📅 週次カレンダー</h1>
+                <div class="week-range">
+                    {{ weekly_data.week_start }} 〜 {{ weekly_data.week_end }}
+                    <br><small style="opacity: 0.7;">取得イベント: {{ weekly_data.debug_info.total_events }}件</small>
+                    <br><small style="opacity: 0.5;">デバッグ: events_by_day keys = {{ weekly_data.events_by_day.keys() | list }}</small>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <a href="/groups" class="logout-btn">👥 グループ</a>
+                <a href="/logout" class="logout-btn">ログアウト</a>
+            </div>
+        </div>
+        
+        <div class="calendar-wrapper">
+            {% if weekly_data.week_dates %}
+                <div class="calendar-container">
+                    <!-- カレンダーヘッダー -->
+                    <div class="calendar-header">
+                        <div class="time-header"></div>
+                        {% for day in weekly_data.week_dates %}
+                            <div class="day-header {% if day.is_today %}today{% endif %}">
+                                <div class="day-name">{{ day.day_name }}</div>
+                                <div class="day-number">{{ day.day_number }}</div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- 終日イベント -->
+                    {% set has_all_day = false %}
+                    {% for day in weekly_data.week_dates %}
+                        {% for event in weekly_data.events_by_day.get(day.date, []) %}
+                            {% if event.is_all_day %}
+                                {% set has_all_day = true %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endfor %}
+                    
+                    {% if has_all_day %}
+                        <div class="all-day-events">
+                            <div style="display: grid; grid-template-columns: 60px repeat(7, 1fr); gap: 1px;">
+                                <div style="display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #666;">終日</div>
+                                {% for day in weekly_data.week_dates %}
+                                    <div>
+                                        {% for event in weekly_data.events_by_day.get(day.date, []) %}
+                                            {% if event.is_all_day %}
+                                                <div class="all-day-event" title="{{ event.summary }}{% if event.description %} - {{ event.description }}{% endif %}">
+                                                    {{ event.summary }}
+                                                </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <!-- カレンダーボディ -->
+                    <div class="calendar-body">
+                        <!-- 時間軸 -->
+                        <div class="time-axis">
+                            {% for hour in weekly_data.hours %}
+                                <div class="hour-slot">{{ hour }}:00</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <!-- 各日の列 -->
+                        {% for day in weekly_data.week_dates %}
+                            <div class="day-column {% if day.is_today %}today-column{% endif %}">
+                                <!-- デバッグ情報 -->
+                                <div style="font-size: 10px; color: red; position: absolute; top: 0; left: 0; z-index: 999;">
+                                    {{ day.date }}: {{ weekly_data.events_by_day.get(day.date, []) | length }}件
+                                </div>
+                                
+                                <!-- 時間グリッド -->
+                                {% for hour in weekly_data.hours %}
+                                    <div class="hour-grid"></div>
+                                {% endfor %}
+                                
+                                <!-- イベント -->
+                                {% for event in weekly_data.events_by_day.get(day.date, []) %}
+                                    {% if not event.is_all_day %}
+                                        <div class="event" 
+                                             style="top: {{ event.grid_top }}px; height: {{ event.grid_height }}px;"
+                                             title="{{ event.summary }}{% if event.description %} - {{ event.description }}{% endif %}{% if event.location %} ({{ event.location }}){% endif %}">
+                                            <div class="event-title">{{ event.summary }}</div>
+                                            <div class="event-time">{{ event.start_time }}{% if event.end_time %} - {{ event.end_time }}{% endif %}</div>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% else %}
+                <div class="no-events">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">📅</div>
+                    <h3>今週の予定はありません</h3>
+                    <p>新しいイベントを追加するか、<br>別の期間をチェックしてみてください。</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

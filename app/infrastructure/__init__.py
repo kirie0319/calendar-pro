@@ -1,0 +1,1 @@
+# Infrastructure Layer - データベース、外部API、ファイルシステムなどの実装詳細 
