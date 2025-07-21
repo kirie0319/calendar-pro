@@ -12,7 +12,7 @@ class Settings:
     
     # アプリケーション設定
     BASE_URL: str = os.getenv('BASE_URL', 'http://localhost:8000')
-    FRONTEND_URL: str = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+    FRONTEND_URL: str = os.getenv('FRONTEND_URL', 'https://calendar-pro-frontend.vercel.app')
     
     # Google OAuth設定
     GOOGLE_CLIENT_ID: str = os.getenv('GOOGLE_CLIENT_ID')
