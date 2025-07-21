@@ -253,6 +253,10 @@ async def get_group_detail_api(
             "created_at": group.created_at.isoformat() if hasattr(group, 'created_at') and group.created_at else None
         }
         
+        # 設定から招待URLを生成（一時的にリクエストベースから戻す）
+        from app.core.config import settings
+        invite_url = f"{settings.BASE_URL}/groups/join/{group.invite_code}"
+        
         # メンバー情報の安全な処理
         members_data = []
         for member in group_detail['members']:
@@ -288,6 +292,7 @@ async def get_group_detail_api(
             "name": group_data["name"],
             "description": group_data["description"],
             "invite_code": group_data["invite_code"],
+            "invite_url": invite_url,  # 招待URLを追加
             "created_at": group_data["created_at"],
             "member_count": group_detail['member_count'],
             "members": members_data,
