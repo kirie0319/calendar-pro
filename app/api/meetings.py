@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime
 
 from app.api.dependencies import get_database_session, get_templates, get_current_user, get_user_credentials
 from app.service.meeting_service import meeting_service
@@ -12,6 +13,77 @@ from app.infrastructure.repositories.calendar_repository import calendar_reposit
 from app.infrastructure.repositories.user_repository import user_repository
 
 router = APIRouter()
+
+@router.post("/api/meeting/create")
+async def create_meeting(
+    request: Request,
+    title: str = Form(...),
+    start_datetime: str = Form(...),
+    end_datetime: str = Form(...),
+    attendee_emails: List[str] = Form(...),
+    description: str = Form(""),
+    current_user: User = Depends(get_current_user),
+    credentials: dict = Depends(get_user_credentials)
+):
+    """ミーティング作成API"""
+    try:
+        print(f"🔍 ミーティング作成リクエスト受信:")
+        print(f"   タイトル: {title}")
+        print(f"   開始時刻: {start_datetime}")
+        print(f"   終了時刻: {end_datetime}")
+        print(f"   参加者: {attendee_emails}")
+        
+        # 認証情報チェック
+        if not credentials:
+            raise HTTPException(status_code=401, detail="Google認証情報が見つかりません")
+        
+        # 日時文字列をdatetimeオブジェクトに変換
+        try:
+            start_dt = datetime.fromisoformat(start_datetime.replace('Z', '+00:00'))
+            end_dt = datetime.fromisoformat(end_datetime.replace('Z', '+00:00'))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="無効な日時形式です")
+        
+        # 基本的なバリデーション
+        if not title.strip():
+            raise HTTPException(status_code=400, detail="ミーティングタイトルは必須です")
+        
+        if start_dt >= end_dt:
+            raise HTTPException(status_code=400, detail="開始時刻は終了時刻より前である必要があります")
+        
+        if len(attendee_emails) < 1:
+            raise HTTPException(status_code=400, detail="少なくとも1名の参加者が必要です")
+        
+        # ミーティングイベントを作成
+        result = meeting_service.create_meeting_event(
+            credentials=credentials,
+            title=title.strip(),
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            attendee_emails=attendee_emails,
+            description=description.strip()
+        )
+        
+        print(f"✅ ミーティング作成成功: {result['event_id']}")
+        
+        return JSONResponse(content={
+            "status": "success",
+            "message": "ミーティングが正常に作成されました",
+            "event_id": result['event_id'],
+            "html_link": result.get('html_link'),
+            "meeting_details": {
+                "title": title,
+                "start_datetime": start_datetime,
+                "end_datetime": end_datetime,
+                "attendees": attendee_emails
+            }
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ミーティング作成APIエラー: {e}")
+        raise HTTPException(status_code=500, detail=f"ミーティングの作成に失敗しました: {str(e)}")
 
 @router.post("/api/meeting/search")
 async def search_meeting_times(
@@ -46,7 +118,8 @@ async def search_meeting_times(
             start_time=start_time,
             end_time=end_time,
             duration_minutes=duration,
-            member_credentials=credentials if credentials else {}
+            member_credentials=credentials if credentials else {},
+            current_user_email=current_user.email
         )
         
         return JSONResponse(content=search_result)

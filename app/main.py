@@ -33,7 +33,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",  # フロントエンド開発用
         "http://localhost:8000",  # バックエンド開発用
-        "http://127.0.0.1:8000",  # バックエンド開発用（IP指定）
+        "http://127.0.0.1:8000",
+        "https://calendar-pro-frontend.vercel.app"  # バックエンド開発用（IP指定）
     ],
     allow_credentials=True,  # OAuth認証でCookieを使用するため必須
     allow_methods=["GET", "POST", "PUT", "DELETE"],

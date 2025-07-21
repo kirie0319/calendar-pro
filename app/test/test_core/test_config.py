@@ -34,7 +34,8 @@ class TestSettings:
         settings = config.Settings()
         
         expected_scopes = [
-            'https://www.googleapis.com/auth/calendar.readonly',
+            'https://www.googleapis.com/auth/calendar',  # 読み書き権限
+            'https://www.googleapis.com/auth/calendar.readonly',  # 読み取り権限
             'https://www.googleapis.com/auth/userinfo.profile',
             'https://www.googleapis.com/auth/userinfo.email',
             'openid'

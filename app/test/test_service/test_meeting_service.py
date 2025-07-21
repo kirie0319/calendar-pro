@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 from fastapi import HTTPException
 from datetime import datetime, timedelta
 import pytz
@@ -360,3 +360,98 @@ class TestMeetingServiceParameterValidation:
             meeting_service.validate_search_parameters(
                 member_emails, "2024-01-15", "2024-01-16", "24:00", "23:59", 60
             ) 
+
+    def test_create_meeting_event_success(self):
+        """ミーティングイベント作成成功テスト"""
+        # モックの認証情報
+        mock_credentials = {
+            'token': 'mock_token',
+            'refresh_token': 'mock_refresh_token',
+            'token_uri': 'https://oauth2.googleapis.com/token',
+            'client_id': 'mock_client_id',
+            'client_secret': 'mock_client_secret',
+            'scopes': ['https://www.googleapis.com/auth/calendar']
+        }
+        
+        # テスト用の時刻
+        start_time = datetime.now() + timedelta(hours=1)
+        end_time = start_time + timedelta(hours=1)
+        attendees = ['test1@example.com', 'test2@example.com']
+        
+        # Google Calendar APIのモック
+        mock_event_response = {
+            'id': 'test_event_123',
+            'htmlLink': 'https://calendar.google.com/event?eid=test_event_123',
+            'summary': 'テストミーティング'
+        }
+        
+        with patch('app.service.meeting_service.build') as mock_build:
+            mock_service = Mock()
+            mock_events = Mock()
+            mock_insert = Mock()
+            
+            # モックチェーンを設定
+            mock_build.return_value = mock_service
+            mock_service.events.return_value = mock_events
+            mock_events.insert.return_value = mock_insert
+            mock_insert.execute.return_value = mock_event_response
+            
+            # ミーティング作成を実行
+            result = meeting_service.create_meeting_event(
+                credentials=mock_credentials,
+                title='テストミーティング',
+                start_datetime=start_time,
+                end_datetime=end_time,
+                attendee_emails=attendees,
+                description='テスト説明'
+            )
+            
+            # 結果検証
+            assert result['event_id'] == 'test_event_123'
+            assert result['status'] == 'created'
+            assert result['title'] == 'テストミーティング'
+            assert result['attendees'] == attendees
+            
+            # API呼び出し検証
+            mock_events.insert.assert_called_once()
+            call_args = mock_events.insert.call_args
+            assert call_args[1]['calendarId'] == 'primary'
+            assert call_args[1]['sendNotifications'] == True
+            
+            # イベントボディ検証
+            event_body = call_args[1]['body']
+            assert event_body['summary'] == 'テストミーティング'
+            assert event_body['description'] == 'テスト説明'
+            assert len(event_body['attendees']) == 2
+            assert event_body['attendees'][0]['email'] == 'test1@example.com'
+
+    def test_create_meeting_event_api_error(self):
+        """Google Calendar API エラーテスト"""
+        mock_credentials = {
+            'token': 'mock_token',
+            'refresh_token': 'mock_refresh_token',
+            'token_uri': 'https://oauth2.googleapis.com/token',
+            'client_id': 'mock_client_id',
+            'client_secret': 'mock_client_secret',
+            'scopes': ['https://www.googleapis.com/auth/calendar']
+        }
+        
+        start_time = datetime.now() + timedelta(hours=1)
+        end_time = start_time + timedelta(hours=1)
+        
+        with patch('app.service.meeting_service.build') as mock_build:
+            # Google Calendar APIエラーをシミュレート
+            mock_build.side_effect = Exception("API access denied")
+            
+            # HTTPExceptionが発生することを確認
+            with pytest.raises(HTTPException) as excinfo:
+                meeting_service.create_meeting_event(
+                    credentials=mock_credentials,
+                    title='テストミーティング',
+                    start_datetime=start_time,
+                    end_datetime=end_time,
+                    attendee_emails=['test@example.com']
+                )
+            
+            assert excinfo.value.status_code == 500
+            assert "ミーティングの作成に失敗しました" in str(excinfo.value.detail) 

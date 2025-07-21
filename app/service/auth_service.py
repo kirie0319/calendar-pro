@@ -96,9 +96,43 @@ class AuthService:
             # 認証コードからトークンを取得
             authorization_response = str(request.url)
             print(f"🔍 Authorization response: {authorization_response}")
-            flow.fetch_token(authorization_response=authorization_response)
             
-            credentials = flow.credentials
+            # スコープ変更警告を無視してトークンを取得
+            import warnings
+            from urllib.parse import parse_qs, urlparse
+            
+            credentials = None
+            
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                try:
+                    flow.fetch_token(authorization_response=authorization_response)
+                    credentials = flow.credentials
+                    print("✅ 通常のOAuth flowでトークン取得成功")
+                except Exception as e:
+                    print(f"⚠️ OAuth flow エラー: {e}")
+                    
+                    # 代替方法：認証コードから直接トークンを取得
+                    try:
+                        print("🔄 代替方法でトークン取得を試行")
+                        parsed_url = urlparse(authorization_response)
+                        query_params = parse_qs(parsed_url.query)
+                        auth_code = query_params.get('code', [None])[0]
+                        
+                        if auth_code:
+                            # 新しいflowを作成して直接トークン交換
+                            new_flow = self.create_oauth_flow()
+                            new_flow.fetch_token(code=auth_code)
+                            credentials = new_flow.credentials
+                            print("✅ 代替方法でトークン取得成功")
+                        else:
+                            raise Exception("認証コードが見つかりません")
+                    except Exception as alt_error:
+                        print(f"❌ 代替方法も失敗: {alt_error}")
+                        raise Exception(f"OAuth認証に失敗しました: {e}")
+            
+            if not credentials:
+                raise Exception("認証情報の取得に失敗しました")
             
             # ユーザー情報を取得
             user_info = self._get_user_info_from_google(credentials)
@@ -166,6 +200,7 @@ class AuthService:
                     maxResults=250,
                     singleEvents=True,
                     orderBy='startTime',
+                    showDeleted=False,  # 削除されたイベントを除外
                     pageToken=page_token
                 ).execute()
                 
@@ -196,7 +231,7 @@ class AuthService:
             return False
     
     def _convert_google_event_to_db_format(self, event: Dict) -> Optional[Dict]:
-        """GoogleカレンダーイベントをDB保存形式に変換"""
+        """GoogleカレンダーイベントをDB保存形式に変換（UTC統一）"""
         try:
             start = event['start'].get('dateTime', event['start'].get('date'))
             end = event['end'].get('dateTime', event['end'].get('date'))
@@ -205,17 +240,24 @@ class AuthService:
             is_all_day = 'date' in event['start']
             
             if is_all_day:
-                start_dt = datetime.fromisoformat(start).replace(tzinfo=self.timezone)
-                end_dt = datetime.fromisoformat(end).replace(tzinfo=self.timezone)
+                # 終日イベントはJSTの日付として解釈し、UTCに変換
+                start_dt = datetime.fromisoformat(start)
+                end_dt = datetime.fromisoformat(end)
+                start_dt = self.timezone.localize(start_dt).astimezone(pytz.UTC)
+                end_dt = self.timezone.localize(end_dt).astimezone(pytz.UTC)
             else:
                 if start.endswith('Z'):
+                    # UTC時刻として解釈
                     start_dt = datetime.fromisoformat(start.replace('Z', '+00:00'))
                     end_dt = datetime.fromisoformat(end.replace('Z', '+00:00'))
-                    start_dt = start_dt.astimezone(self.timezone)
-                    end_dt = end_dt.astimezone(self.timezone)
                 else:
+                    # タイムゾーン情報付きの時刻として解釈
                     start_dt = datetime.fromisoformat(start)
                     end_dt = datetime.fromisoformat(end)
+                
+                # UTC統一で保存
+                start_dt = start_dt.astimezone(pytz.UTC)
+                end_dt = end_dt.astimezone(pytz.UTC)
             
             return {
                 'google_event_id': event['id'],
@@ -229,14 +271,14 @@ class AuthService:
             return None
     
     def _credentials_to_dict(self, credentials: Credentials) -> Dict:
-        """Credentialsオブジェクトを辞書に変換"""
+        """Credentialsオブジェクトを辞書に変換（設定から不足フィールドを補完）"""
         return {
             'token': credentials.token,
             'refresh_token': credentials.refresh_token,
-            'token_uri': credentials.token_uri,
-            'client_id': credentials.client_id,
-            'client_secret': credentials.client_secret,
-            'scopes': credentials.scopes
+            'token_uri': credentials.token_uri or 'https://oauth2.googleapis.com/token',
+            'client_id': credentials.client_id or settings.GOOGLE_CLIENT_ID,
+            'client_secret': credentials.client_secret or settings.GOOGLE_CLIENT_SECRET,
+            'scopes': credentials.scopes or settings.GOOGLE_SCOPES
         }
     
     def get_current_user(self, request: Request, db: Session) -> User:

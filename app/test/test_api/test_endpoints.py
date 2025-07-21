@@ -1,7 +1,9 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
+from datetime import datetime, timedelta
+
 from fastapi.testclient import TestClient
-from app.test.conftest import set_session_data
+from app.test.conftest import set_session_data, setup_authenticated_client, clear_authenticated_client
 
 @pytest.mark.api
 class TestAuthEndpoints:
@@ -414,6 +416,113 @@ class TestMeetingEndpoints:
             assert 'status' in data
         finally:
             clear_authenticated_client(test_client)
+
+@pytest.mark.api
+class TestMeetingAPI:
+    """ミーティングAPI関連のテスト"""
+
+    def test_create_meeting_success(self, test_client, test_user):
+        """ミーティング作成API成功テスト"""
+        # 認証済みクライアントを設定
+        client = setup_authenticated_client(test_client, test_user)
+        
+        # テスト用データ
+        start_time = datetime.now() + timedelta(hours=1)
+        end_time = start_time + timedelta(hours=1)
+        
+        form_data = {
+            'title': 'テストミーティング',
+            'start_datetime': start_time.isoformat(),
+            'end_datetime': end_time.isoformat(),
+            'attendee_emails': ['test1@example.com', 'test2@example.com'],
+            'description': 'テスト説明'
+        }
+        
+        # 認証情報の依存性をモック（完全な認証情報）
+        mock_credentials = {
+            'token': 'mock_token',
+            'refresh_token': 'mock_refresh_token',
+            'token_uri': 'https://oauth2.googleapis.com/token',
+            'client_id': 'mock_client_id',
+            'client_secret': 'mock_client_secret',
+            'scopes': ['https://www.googleapis.com/auth/calendar']
+        }
+        
+        # Google Calendar APIをモック
+        mock_event_response = {
+            'id': 'test_event_123',
+            'htmlLink': 'https://calendar.google.com/event?eid=test_event_123'
+        }
+        
+        # パッチの適用順序を修正
+        with patch('app.api.dependencies.get_current_user', return_value=test_user):
+            with patch('app.api.dependencies.get_user_credentials', return_value=mock_credentials):
+                with patch('app.service.meeting_service.build') as mock_build:
+                    mock_service = Mock()
+                    mock_events = Mock()
+                    mock_insert = Mock()
+                    
+                    mock_build.return_value = mock_service
+                    mock_service.events.return_value = mock_events
+                    mock_events.insert.return_value = mock_insert
+                    mock_insert.execute.return_value = mock_event_response
+                    
+                    # APIリクエスト実行
+                    response = client.post("/api/meeting/create", data=form_data)
+                    
+                    # レスポンス検証
+                    assert response.status_code == 200
+                    
+                    response_data = response.json()
+                    assert response_data['status'] == 'success'
+                    assert response_data['event_id'] == 'test_event_123'
+                    assert response_data['meeting_details']['title'] == 'テストミーティング'
+                    assert len(response_data['meeting_details']['attendees']) == 2
+        
+        # クリーンアップ
+        clear_authenticated_client(client)
+
+    def test_create_meeting_no_credentials(self, test_client, test_user):
+        """認証情報なしでのミーティング作成テスト"""
+        client = setup_authenticated_client(test_client, test_user)
+        
+        form_data = {
+            'title': 'テストミーティング',
+            'start_datetime': datetime.now().isoformat(),
+            'end_datetime': (datetime.now() + timedelta(hours=1)).isoformat(),
+            'attendee_emails': ['test@example.com']
+        }
+        
+        # 認証情報なしをモック
+        with patch('app.api.dependencies.get_user_credentials', return_value=None):
+            response = client.post("/api/meeting/create", data=form_data)
+            
+            assert response.status_code == 401
+            assert "Google認証情報が見つかりません" in response.json()['detail']
+        
+        clear_authenticated_client(client)
+
+    def test_create_meeting_invalid_data(self, test_client, test_user):
+        """無効なデータでのミーティング作成テスト"""
+        client = setup_authenticated_client(test_client, test_user)
+        
+        mock_credentials = {'token': 'mock_token'}
+        
+        # 空のタイトル
+        form_data = {
+            'title': '',
+            'start_datetime': datetime.now().isoformat(),
+            'end_datetime': (datetime.now() + timedelta(hours=1)).isoformat(),
+            'attendee_emails': ['test@example.com']
+        }
+        
+        with patch('app.api.dependencies.get_user_credentials', return_value=mock_credentials):
+            response = client.post("/api/meeting/create", data=form_data)
+            
+            assert response.status_code == 400
+            assert "ミーティングタイトルは必須です" in response.json()['detail']
+        
+        clear_authenticated_client(client)
 
 @pytest.mark.integration
 class TestEndpointIntegration:

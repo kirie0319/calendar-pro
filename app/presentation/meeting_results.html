@@ -415,6 +415,71 @@
             margin-bottom: 20px;
         }
 
+        .meeting-creation-form {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f0f8ff;
+            border: 1px solid #cce5ff;
+            border-radius: 8px;
+        }
+
+        .meeting-creation-form h5 {
+            color: #007bff;
+            margin-bottom: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .form-group input[type="text"],
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .form-group input[type="text"]:focus,
+        .form-group textarea:focus {
+            border-color: #80bdff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        .meeting-success {
+            margin-top: 20px;
+            padding: 20px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            color: #155724;
+        }
+
+        .meeting-success h5 {
+            color: #155724;
+            margin-bottom: 10px;
+        }
+
+        .success-actions {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
         @media (max-width: 768px) {
             .container {
                 margin: 10px;
@@ -541,6 +606,45 @@
                 <h4>📋 選択された時間</h4>
                 <p id="selectedTimeText"></p>
                 <p>ミーティング時間: {{ search_params.duration }}分</p>
+                
+                <!-- ミーティング予約フォーム -->
+                <div class="meeting-creation-form" id="meetingForm" style="display: none;">
+                    <h5>📅 ミーティングを予約</h5>
+                    <form id="createMeetingForm">
+                        <div class="form-group">
+                            <label for="meetingTitle">ミーティングタイトル *</label>
+                            <input type="text" id="meetingTitle" name="title" required 
+                                   placeholder="例: チーム定例会議" maxlength="100">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="meetingDescription">説明（任意）</label>
+                            <textarea id="meetingDescription" name="description" 
+                                      placeholder="議題や詳細を入力..." maxlength="500" rows="3"></textarea>
+                        </div>
+                        
+                        <input type="hidden" id="selectedStartDateTime" name="start_datetime">
+                        <input type="hidden" id="selectedEndDateTime" name="end_datetime">
+                        <input type="hidden" id="selectedAttendees" name="attendee_emails">
+                        
+                        <div class="form-actions">
+                            <button type="button" onclick="hideMeetingForm()" class="btn btn-secondary">キャンセル</button>
+                            <button type="submit" class="btn btn-primary" id="createMeetingBtn">
+                                📅 ミーティングを作成
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <!-- 予約成功メッセージ -->
+                <div class="meeting-success" id="meetingSuccess" style="display: none;">
+                    <h5>✅ ミーティングが予約されました！</h5>
+                    <p id="successMessage"></p>
+                    <div class="success-actions">
+                        <a id="calendarLink" href="#" target="_blank" class="btn btn-primary">📅 カレンダーで確認</a>
+                        <button onclick="hideSuccessMessage()" class="btn btn-secondary">閉じる</button>
+                    </div>
+                </div>
             </div>
             
             <!-- 予定詳細表示パネル -->
@@ -837,8 +941,24 @@
             const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
             const dayName = dayNames[dateObj.getDay()];
             
-            selectedText.textContent = `${dateObj.getFullYear()}年${(dateObj.getMonth() + 1)}月${dateObj.getDate()}日 (${dayName}) ${time} - ${addMinutes(time, searchParams.duration)}`;
+            const endTime = addMinutes(time, searchParams.duration);
+            selectedText.textContent = `${dateObj.getFullYear()}年${(dateObj.getMonth() + 1)}月${dateObj.getDate()}日 (${dayName}) ${time} - ${endTime}`;
             selectedInfo.style.display = 'block';
+            
+            // 予約ボタンを追加
+            const existingButton = document.getElementById('createMeetingButton');
+            if (existingButton) {
+                existingButton.remove();
+            }
+            
+            const createButton = document.createElement('button');
+            createButton.id = 'createMeetingButton';
+            createButton.className = 'btn btn-primary';
+            createButton.style.marginTop = '15px';
+            createButton.innerHTML = '📅 このスロットでミーティングを予約';
+            createButton.onclick = () => showMeetingForm(date, time, endTime);
+            
+            selectedInfo.appendChild(createButton);
             
             // 予定詳細を表示
             showScheduleDetails(date, time, slotStatus);
@@ -918,9 +1038,141 @@
             // 非表示ボタンも隠す
             document.getElementById('hideDetailsBtn').style.display = 'none';
         }
-        
-        // ページ読み込み時にカレンダーを生成
+
+        // ミーティング予約フォームを表示
+        function showMeetingForm(date, time, endTime) {
+            const form = document.getElementById('meetingForm');
+            const selectedTimeInfo = document.getElementById('selectedTimeInfo');
+            const selectedStartDateTime = document.getElementById('selectedStartDateTime');
+            const selectedEndDateTime = document.getElementById('selectedEndDateTime');
+            const selectedAttendees = document.getElementById('selectedAttendees');
+            
+            // ISO形式の日時文字列を作成
+            const startDateTime = `${date}T${time}:00`;
+            const endDateTime = `${date}T${endTime}:00`;
+            
+            // フォームに値を設定
+            document.getElementById('meetingTitle').value = `ミーティング (${time} - ${endTime})`;
+            document.getElementById('meetingDescription').value = `参加者: ${searchParams.selected_members.join(', ')}`;
+            selectedStartDateTime.value = startDateTime;
+            selectedEndDateTime.value = endDateTime;
+            
+            // 参加者のメールアドレスを文字列として保存
+            selectedAttendees.value = searchParams.selected_members.join(',');
+            
+            form.style.display = 'block';
+            console.log('📝 ミーティング予約フォーム表示:', {
+                startDateTime,
+                endDateTime,
+                attendees: searchParams.selected_members
+            });
+        }
+
+        // ミーティング予約フォームを非表示
+        function hideMeetingForm() {
+            const form = document.getElementById('meetingForm');
+            const selectedInfo = document.getElementById('selectedTimeInfo');
+            form.style.display = 'none';
+            console.log('📝 ミーティング予約フォームを非表示にしました');
+        }
+
+        // ミーティング作成API呼び出し
+        async function createMeeting(formData) {
+            try {
+                console.log('🔄 ミーティング作成API呼び出し開始');
+                
+                // FormDataを作成
+                const form = new FormData();
+                form.append('title', formData.title);
+                form.append('start_datetime', formData.start_datetime);
+                form.append('end_datetime', formData.end_datetime);
+                form.append('description', formData.description || '');
+                
+                // 参加者のメールアドレスを個別に追加
+                const attendees = formData.attendee_emails.split(',');
+                attendees.forEach(email => {
+                    form.append('attendee_emails', email.trim());
+                });
+                
+                const response = await fetch('/api/meeting/create', {
+                    method: 'POST',
+                    body: form
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    console.log('✅ ミーティング作成成功:', result);
+                    return { success: true, data: result };
+                } else {
+                    console.error('❌ ミーティング作成失敗:', result);
+                    return { success: false, error: result.detail || 'ミーティング作成に失敗しました' };
+                }
+                
+            } catch (error) {
+                console.error('❌ ミーティング作成エラー:', error);
+                return { success: false, error: 'ネットワークエラーが発生しました' };
+            }
+        }
+
+        // フォーム送信処理
         document.addEventListener('DOMContentLoaded', function() {
+            const createMeetingForm = document.getElementById('createMeetingForm');
+            if (createMeetingForm) {
+                createMeetingForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const submitButton = document.getElementById('createMeetingBtn');
+                    const originalText = submitButton.innerHTML;
+                    
+                    // ローディング状態に変更
+                    submitButton.disabled = true;
+                    submitButton.innerHTML = '🔄 作成中...';
+                    
+                    try {
+                        // フォームデータを取得
+                        const formData = {
+                            title: document.getElementById('meetingTitle').value.trim(),
+                            start_datetime: document.getElementById('selectedStartDateTime').value,
+                            end_datetime: document.getElementById('selectedEndDateTime').value,
+                            attendee_emails: document.getElementById('selectedAttendees').value,
+                            description: document.getElementById('meetingDescription').value.trim()
+                        };
+                        
+                        console.log('📝 送信データ:', formData);
+                        
+                        // API呼び出し
+                        const result = await createMeeting(formData);
+                        
+                        if (result.success) {
+                            // 成功時の処理
+                            hideMeetingForm();
+                            
+                            const successMessage = `ミーティング「${formData.title}」が正常に作成されました！`;
+                            showSuccessMessage(successMessage);
+                            
+                            // カレンダーリンクを設定
+                            if (result.data.html_link) {
+                                setCalendarLink(result.data.html_link);
+                            }
+                            
+                        } else {
+                            // エラー時の処理
+                            alert(`ミーティング作成に失敗しました: ${result.error}`);
+                        }
+                        
+                    } catch (error) {
+                        console.error('❌ フォーム送信エラー:', error);
+                        alert('予期しないエラーが発生しました');
+                    } finally {
+                        // ボタンを元に戻す
+                        submitButton.disabled = false;
+                        submitButton.innerHTML = originalText;
+                    }
+                });
+            }
+            
+            // ページ読み込み時にカレンダーを生成
             console.log('🚀 ページ読み込み完了');
             console.log('📊 利用可能スロット:', availableSlots);
             console.log('📊 利用可能スロット数:', availableSlots.length);
@@ -947,6 +1199,29 @@
                 console.error('❌ カレンダー生成エラー:', error);
             }
         });
+        
+        // ミーティング予約成功メッセージを表示
+        function showSuccessMessage(message) {
+            const successMessage = document.getElementById('successMessage');
+            successMessage.textContent = message;
+            const meetingSuccess = document.getElementById('meetingSuccess');
+            meetingSuccess.style.display = 'block';
+            console.log('✅ ミーティング予約成功メッセージを表示しました');
+        }
+        
+        // ミーティング予約成功メッセージを非表示
+        function hideSuccessMessage() {
+            const meetingSuccess = document.getElementById('meetingSuccess');
+            meetingSuccess.style.display = 'none';
+            console.log('📝 ミーティング予約成功メッセージを非表示にしました');
+        }
+        
+        // ミーティング予約成功後のカレンダーリンクを設定
+        function setCalendarLink(url) {
+            const calendarLink = document.getElementById('calendarLink');
+            calendarLink.href = url;
+            console.log('📅 カレンダーリンクを設定しました:', url);
+        }
     </script>
 </body>
 </html> 

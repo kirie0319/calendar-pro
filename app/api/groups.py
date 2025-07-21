@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends, HTTPException, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
@@ -199,3 +199,193 @@ async def meeting_scheduler_search(
     except Exception as e:
         print(f"❌ ミーティング検索フォーム処理エラー: {e}")
         return RedirectResponse(url=f"/groups/{group_id}/schedule", status_code=302)
+
+# JSON API エンドポイント（フロントエンド用）
+
+@router.get("/api/groups")
+async def get_user_groups_api(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database_session)
+):
+    """ユーザーのグループ一覧を取得（JSON）"""
+    try:
+        groups = group_service.get_user_groups(db, current_user.id)
+        
+        # フロントエンド形式に変換
+        formatted_groups = []
+        for group in groups:
+            # メンバー数を取得
+            members = group_service.get_group_members(db, group['id'])
+            
+            formatted_groups.append({
+                "id": str(group['id']),
+                "name": group['name'],
+                "description": group['description'],
+                "memberCount": len(members),
+                "role": "owner" if group['role'] == "admin" else group['role']
+            })
+        
+        return JSONResponse(content=formatted_groups)
+        
+    except Exception as e:
+        import traceback
+        print(f"❌ グループ一覧API取得エラー: {e}")
+        print(f"❌ トレースバック: {traceback.format_exc()}")
+        return JSONResponse(content=[], status_code=500)
+
+@router.get("/api/groups/{group_id}")
+async def get_group_detail_api(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database_session)
+):
+    """グループ詳細情報を取得（JSON）"""
+    try:
+        group_detail = group_service.get_group_detail_for_user(db, group_id, current_user.id)
+        
+        # グループ情報の安全な処理
+        group = group_detail['group']
+        group_data = {
+            "id": group.id,
+            "name": group.name,
+            "description": group.description,
+            "invite_code": group.invite_code,
+            "created_at": group.created_at.isoformat() if hasattr(group, 'created_at') and group.created_at else None
+        }
+        
+        # メンバー情報の安全な処理
+        members_data = []
+        for member in group_detail['members']:
+            # joined_atの安全な変換
+            joined_at_str = None
+            if member.get('joined_at'):
+                try:
+                    # datetimeオブジェクトの場合はisoformat()を呼ぶ
+                    joined_at_str = member['joined_at'].isoformat()
+                except AttributeError:
+                    # すでに文字列の場合はそのまま使用
+                    joined_at_str = str(member['joined_at'])
+            
+            member_data = {
+                "name": member.get('name'),
+                "email": member.get('email'),
+                "role": member.get('role'),
+                "joined_at": joined_at_str
+            }
+            members_data.append(member_data)
+        
+        # membershipがNoneの場合に備えて安全に処理
+        membership_data = None
+        if group_detail['membership']:
+            membership = group_detail['membership']
+            membership_data = {
+                "role": membership.role.value if hasattr(membership.role, 'value') else str(membership.role),
+                "joined_at": membership.joined_at.isoformat() if membership.joined_at else None
+            }
+        
+        return JSONResponse(content={
+            "id": group_data["id"],
+            "name": group_data["name"],
+            "description": group_data["description"],
+            "invite_code": group_data["invite_code"],
+            "created_at": group_data["created_at"],
+            "member_count": group_detail['member_count'],
+            "members": members_data,
+            "membership": membership_data
+        })
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"❌ グループ詳細API取得エラー: {e}")
+        print(f"❌ トレースバック: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"グループ詳細の取得に失敗しました: {str(e)}")
+
+@router.post("/api/groups")
+async def create_group_api(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database_session)
+):
+    """グループを作成（JSON）"""
+    try:
+        # リクエストボディから名前と説明を取得
+        body = await request.json()
+        name = body.get('name', '').strip()
+        description = body.get('description', '').strip()
+        
+        # 入力検証
+        if not name:
+            raise HTTPException(status_code=400, detail="グループ名を入力してください")
+        
+        if len(name) > 100:
+            raise HTTPException(status_code=400, detail="グループ名は100文字以内で入力してください")
+        
+        if len(description) > 500:
+            raise HTTPException(status_code=400, detail="説明は500文字以内で入力してください")
+        
+        # 新しいグループを作成
+        group = group_service.create_group(db, name, description, current_user.id)
+        
+        print(f"✅ グループ作成成功: {group.name} (ID: {group.id})")
+        
+        return JSONResponse(content={
+            "id": str(group.id),
+            "name": group.name,
+            "description": group.description,
+            "memberCount": 1,
+            "role": "owner"
+        }, status_code=201)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ グループ作成APIエラー: {e}")
+        raise HTTPException(status_code=500, detail="グループの作成に失敗しました")
+
+@router.get("/api/groups/{group_id}/members")
+async def get_group_members_api(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_database_session)
+):
+    """グループメンバー一覧を取得（JSON）"""
+    try:
+        # アクセス権限チェック
+        group_service.get_group_with_access_check(db, group_id, current_user.id)
+        
+        # メンバー一覧を取得
+        members = group_service.get_group_members(db, group_id)
+        
+        # フロントエンド形式に変換
+        formatted_members = []
+        for member in members:
+            # joined_atの安全な変換
+            joined_at_str = None
+            if member.get('joined_at'):
+                try:
+                    # datetimeオブジェクトの場合はisoformat()を呼ぶ
+                    joined_at_str = member['joined_at'].isoformat()
+                except AttributeError:
+                    # すでに文字列の場合はそのまま使用
+                    joined_at_str = str(member['joined_at'])
+            
+            formatted_members.append({
+                "name": member['name'],
+                "email": member['email'],
+                "role": member['role'],
+                "department": "開発部",  # TODO: ユーザーモデルに追加
+                "status": "online",     # TODO: ユーザーステータス機能追加
+                "joined_at": joined_at_str
+            })
+        
+        return JSONResponse(content=formatted_members)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"❌ グループメンバーAPI取得エラー: {e}")
+        print(f"❌ トレースバック: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"グループメンバーの取得に失敗しました: {str(e)}")

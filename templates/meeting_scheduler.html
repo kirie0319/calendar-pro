@@ -263,7 +263,7 @@
             <!-- メンバー選択セクション -->
             <div class="section">
                 <h3>参加者を選択</h3>
-                <p style="color: #666; margin-bottom: 15px;">ミーティングに参加するメンバーを2名以上選択してください</p>
+                <p style="color: #666; margin-bottom: 15px;">ミーティングに参加するメンバーを1名以上選択してください</p>
                 
                 <div class="member-grid">
                     {% for member in members %}
@@ -277,7 +277,7 @@
                 </div>
                 
                 <div id="member-validation" class="validation-message">
-                    少なくとも2名のメンバーを選択してください
+                    少なくとも1名のメンバーを選択してください
                 </div>
             </div>
 
@@ -388,7 +388,7 @@
             const searchBtn = document.getElementById('searchBtn');
             const validation = document.getElementById('member-validation');
             
-            if (selectedMembers.length >= 2) {
+            if (selectedMembers.length >= 1) {
                 searchBtn.disabled = false;
                 validation.style.display = 'none';
             } else {
@@ -401,9 +401,9 @@
         document.getElementById('schedulerForm').addEventListener('submit', function(e) {
             const selectedMembers = document.querySelectorAll('input[name="selected_members"]:checked');
             
-            if (selectedMembers.length < 2) {
+            if (selectedMembers.length < 1) {
                 e.preventDefault();
-                alert('少なくとも2名のメンバーを選択してください');
+                alert('少なくとも1名のメンバーを選択してください');
                 return;
             }
 

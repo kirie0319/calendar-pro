@@ -3,8 +3,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_database_session, get_templates, get_current_user_optional
+from app.api.dependencies import get_database_session, get_templates, get_current_user_optional, get_current_user
 from app.service.auth_service import auth_service
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -16,7 +17,8 @@ async def index(
 ):
     """メインページ"""
     if current_user:
-        return RedirectResponse(url="/groups", status_code=302)
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        return RedirectResponse(url=f"{frontend_url}/dashboard", status_code=302)
     
     return templates.TemplateResponse("index.html", {"request": request})
 
@@ -28,8 +30,9 @@ async def login(request: Request):
         
         # 既に認証済みかチェック
         if 'user_id' in request.session and 'credentials' in request.session:
-            print(f"✅ 既に認証済みのユーザーです - グループページにリダイレクト")
-            return RedirectResponse(url="/groups", status_code=302)
+            print(f"✅ 既に認証済みのユーザーです - ダッシュボードにリダイレクト")
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+            return RedirectResponse(url=f"{frontend_url}/dashboard", status_code=302)
         
         authorization_url, state = auth_service.get_authorization_url()
         
@@ -53,8 +56,9 @@ async def callback(request: Request, db: Session = Depends(get_database_session)
     try:
         # 既に認証済みかチェック
         if 'user_id' in request.session and 'credentials' in request.session:
-            print(f"✅ 既に認証済みユーザーのコールバック - グループページにリダイレクト")
-            return RedirectResponse(url="/groups", status_code=302)
+            print(f"✅ 既に認証済みユーザーのコールバック - ダッシュボードにリダイレクト")
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+            return RedirectResponse(url=f"{frontend_url}/dashboard", status_code=302)
         
         # OAuth認証を処理
         result = auth_service.handle_oauth_callback(request, db)
@@ -74,26 +78,33 @@ async def callback(request: Request, db: Session = Depends(get_database_session)
         # 使用済みのstateを削除
         request.session.pop('state', None)
         
-        print(f"🔗 /groups にリダイレクト中...")
-        return RedirectResponse(url="/groups", status_code=302)
+        # フロントエンドのダッシュボードにリダイレクト
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        redirect_url = f"{frontend_url}/dashboard"
+        print(f"🔗 フロントエンドダッシュボードにリダイレクト中: {redirect_url}")
+        return RedirectResponse(url=redirect_url, status_code=302)
         
     except HTTPException as e:
         # HTTPExceptionの場合、特別な処理
         if e.status_code == 409:  # User already authenticated
-            print(f"✅ 既に認証済みユーザー - グループページにリダイレクト")
-            return RedirectResponse(url="/groups", status_code=302)
+            print(f"✅ 既に認証済みユーザー - ダッシュボードにリダイレクト")
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+            return RedirectResponse(url=f"{frontend_url}/dashboard", status_code=302)
         raise
     except Exception as e:
         # エラーが発生した場合はセッションをクリアして最初から
         auth_service.clear_session(request)
         print(f"❌ 認証コールバックエラー: {e}")
-        return HTMLResponse(f"認証エラーが発生しました: {str(e)} <br><a href='/'>最初からやり直す</a>")
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        error_url = f"{frontend_url}/login?error=auth_failed"
+        return RedirectResponse(url=error_url, status_code=302)
 
 @router.get("/logout")
 async def logout(request: Request):
     """ログアウト"""
     auth_service.clear_session(request)
-    return RedirectResponse(url="/", status_code=302)
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+    return RedirectResponse(url=f"{frontend_url}/login", status_code=302)
 
 @router.get("/status")
 async def status():
@@ -111,6 +122,53 @@ async def status():
             "DB保存型カレンダー同期"
         ]
     }
+
+@router.get("/auth/user")
+async def get_current_user_info(
+    request: Request,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_database_session)
+):
+    """現在のユーザー情報を取得"""
+    try:
+        return {
+            "authenticated": True,
+            "user": {
+                "id": current_user.id,
+                "email": current_user.email,
+                "name": current_user.name,
+                "google_user_id": current_user.google_user_id,
+                "calendar_synced": current_user.is_calendar_synced(),
+                "created_at": current_user.created_at.isoformat() if current_user.created_at else None
+            }
+        }
+    except Exception as e:
+        print(f"❌ ユーザー情報取得エラー: {e}")
+        return {
+            "authenticated": False,
+            "error": "ユーザー情報の取得に失敗しました"
+        }
+
+@router.get("/auth/check")
+async def check_auth(request: Request):
+    """認証状態を確認"""
+    try:
+        if 'user_id' in request.session and 'credentials' in request.session:
+            return {
+                "authenticated": True,
+                "message": "認証済み"
+            }
+        else:
+            return {
+                "authenticated": False,
+                "message": "未認証"
+            }
+    except Exception as e:
+        print(f"❌ 認証チェックエラー: {e}")
+        return {
+            "authenticated": False,
+            "error": "認証状態の確認に失敗しました"
+        }
 
 @router.get("/debug/info")
 async def debug_info():
