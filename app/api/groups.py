@@ -256,7 +256,7 @@ async def get_group_detail_api(
         
         # 設定から招待URLを生成（フロントエンドベースに変更）
         from app.core.config import settings
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        frontend_url = getattr(settings, 'BASE_URL', 'http://localhost:3000')
         invite_url = f"{frontend_url}/dashboard?invite={group.invite_code}"
         
         # メンバー情報の安全な処理
