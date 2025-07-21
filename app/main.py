@@ -34,7 +34,8 @@ app.add_middleware(
         "http://localhost:3000",  # フロントエンド開発用
         "http://localhost:8000",  # バックエンド開発用
         "http://127.0.0.1:8000",
-        "https://calendar-pro-frontend.vercel.app"  # バックエンド開発用（IP指定）
+        "https://calendar-pro-frontend.vercel.app",  # Vercel デプロイ用
+        "https://calendar-pro-production.up.railway.app"  # Railway デプロイ用
     ],
     allow_credentials=True,  # OAuth認証でCookieを使用するため必須
     allow_methods=["GET", "POST", "PUT", "DELETE"],
@@ -46,8 +47,8 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SECRET_KEY,
     max_age=86400,  # 24時間
-    same_site='lax',  # OAuth リダイレクトで必要
-    https_only=True  # localhost での開発用
+    same_site='none',  # クロスドメイン対応のため 'none' に変更
+    https_only=True  # 本番環境ではHTTPS必須
 )
 
 # ルーター登録
