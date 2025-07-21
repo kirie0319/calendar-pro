@@ -221,6 +221,7 @@ async def get_user_groups_api(
                 "id": str(group['id']),
                 "name": group['name'],
                 "description": group['description'],
+                "invite_code": group['invite_code'],  # 招待コードを追加
                 "memberCount": len(members),
                 "role": "owner" if group['role'] == "admin" else group['role']
             })
@@ -253,9 +254,10 @@ async def get_group_detail_api(
             "created_at": group.created_at.isoformat() if hasattr(group, 'created_at') and group.created_at else None
         }
         
-        # 設定から招待URLを生成（一時的にリクエストベースから戻す）
+        # 設定から招待URLを生成（フロントエンドベースに変更）
         from app.core.config import settings
-        invite_url = f"{settings.BASE_URL}/groups/join/{group.invite_code}"
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+        invite_url = f"{frontend_url}/dashboard?invite={group.invite_code}"
         
         # メンバー情報の安全な処理
         members_data = []
